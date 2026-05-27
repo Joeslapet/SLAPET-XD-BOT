@@ -1,0 +1,25 @@
+node_modules/
+npm-debug.log*
+
+# WhatsApp auth/session secrets
+auth/
+auth_info/
+pairing-service/sessions/*
+!pairing-service/sessions/.gitkeep
+
+# Local config and secrets
+config.json
+.env
+.env.*
+!*.env.example
+
+# Runtime data
+logs/
+media/
+downloads/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

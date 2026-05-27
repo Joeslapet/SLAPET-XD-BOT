@@ -1,0 +1,16 @@
+module.exports = {
+  apps: [
+    {
+      name: 'slapet-pairing-service',
+      script: './server.js',
+      cwd: __dirname,
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '350M',
+      env: {
+        NODE_ENV: 'production'
+      }
+    }
+  ]
+};

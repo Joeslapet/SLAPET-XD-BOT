@@ -1,0 +1,31 @@
+{
+  "name": "slapet-pairing-service",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "WhatsApp Baileys pairing API for SLAPET bot",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "pm2": "pm2 start ecosystem.config.cjs"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "pino": "^9.5.0",
+    "qrcode": "^1.5.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "pm2": "^5.4.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
