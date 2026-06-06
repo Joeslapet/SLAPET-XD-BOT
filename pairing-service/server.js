@@ -30,6 +30,14 @@ function buildPhoneLabel(phone) {
   return digits.length > 3 ? `+${digits}` : digits;
 }
 
+function normalizePairingCode(code) {
+  const cleaned = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (cleaned.length === 8) {
+    return `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
+  }
+  return String(code || '').toUpperCase().trim();
+}
+
 function generatePairingCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
@@ -97,7 +105,7 @@ app.post('/api/pairing/confirm', async (req, res) => {
   }
 
   const phoneNumber = normalizePhone(req.body.phoneNumber || '');
-  const code = String(req.body.code || '').toUpperCase().trim();
+  const code = normalizePairingCode(req.body.code || '');
 
   if (!phoneNumber || !code) {
     return res.status(400).json({ ok: false, error: 'phoneNumber et code sont requis.' });

@@ -48,29 +48,73 @@ async function getBuffer(msg, type) {
     for await (const chunk of stream) chunks.push(chunk);
     return Buffer.concat(chunks);
   } catch (e) {
-
-async function confirmPairingCode(phoneNumber, code) {
-  try {
-    const response = await fetch(`${PAIRING_SERVICE_URL}/api/pairing/confirm`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-pairing-secret': PAIRING_SECRET
-      },
-      body: JSON.stringify({ phoneNumber, code })
-    });
-    if (!response.ok) return false;
-    const data = await response.json();
-    return data.ok === true;
-  } catch (e) {
-    return false;
-  }
-}
-
     console.error('Erreur getBuffer:', e);
     return null;
   }
 }
+
+const http = require('http');
+const https = require('https');
+
+function normalizePairingCode(code) {
+  const cleaned = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (cleaned.length === 8) {
+    return `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
+  }
+  return code || '';
+}
+
+function postJson(url, payload) {
+  return new Promise((resolve, reject) => {
+    try {
+      const parsedUrl = new URL(url);
+      const data = JSON.stringify(payload);
+      const lib = parsedUrl.protocol === 'https:' ? https : http;
+      const req = lib.request(
+        {
+          hostname: parsedUrl.hostname,
+          port: parsedUrl.port,
+          path: parsedUrl.pathname + parsedUrl.search,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(data),
+            'x-pairing-secret': PAIRING_SECRET
+          }
+        },
+        (res) => {
+          let body = '';
+          res.on('data', (chunk) => { body += chunk; });
+          res.on('end', () => {
+            try {
+              const json = JSON.parse(body || '{}');
+              resolve({ statusCode: res.statusCode || 0, body: json });
+            } catch (parseError) {
+              reject(parseError);
+            }
+          });
+        }
+      );
+      req.on('error', reject);
+      req.write(data);
+      req.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function confirmPairingCode(phoneNumber, code) {
+  try {
+    const normalizedCode = normalizePairingCode(code);
+    const response = await postJson(`${PAIRING_SERVICE_URL}/api/pairing/confirm`, { phoneNumber, code: normalizedCode });
+    return response.statusCode >= 200 && response.statusCode < 300 && response.body.ok === true;
+  } catch (e) {
+    console.error('Erreur confirmPairingCode:', e.message || e);
+    return false;
+  }
+}
+
 
 const DIRS = {
   logs: {
