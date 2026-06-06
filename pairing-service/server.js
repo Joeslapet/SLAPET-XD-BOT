@@ -1,24 +1,69 @@
-import { createServer } from 'node:http';
-import app from './src/app.js';
-import { config } from './src/config.js';
-import { log } from './src/utils/logger.js';
-import { attachWebSocket } from './src/utils/ws.js';
-import { startSessionCleanup } from './src/utils/cleanup.js';
+import express from 'express';
+import cors from 'cors';
+import { fileURLToPath } from 'url';
+import path from 'path';
 
-const server = createServer(app);
-attachWebSocket(server);
-startSessionCleanup();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-server.listen(config.port, config.host, () => {
-  log.success(`Pairing service online on ${config.host}:${config.port}`);
-  log.info(`Public URL: ${config.publicUrl}`);
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cors());
+
+// View engine
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'src/views'));
+
+// Routes
+app.get('/', (req, res) => {
+    res.render('pairing');
 });
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+app.post('/api/pairing/code', (req, res) => {
+    const { phoneNumber } = req.body;
+    
+    if (!phoneNumber) {
+        return res.status(400).json({ error: 'Phone number required' });
+    }
 
-function shutdown(signal) {
-  log.warn(`Received ${signal}, shutting down...`);
-  server.close(() => process.exit(0));
-  setTimeout(() => process.exit(1), 10000).unref();
+    // Generate pairing code
+    const code = generatePairingCode();
+    const sessionId = generateSessionId();
+
+    res.json({
+        ok: true,
+        sessionId,
+        phoneNumber,
+        code
+    });
+});
+
+app.get('/api/pairing/sessions/:sessionId', (req, res) => {
+    res.json({
+        ok: true,
+        sessionId: req.params.sessionId,
+        status: 'pending'
+    });
+});
+
+function generatePairingCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+        if (i === 4) code += '-';
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
 }
+
+function generateSessionId() {
+    return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+app.listen(PORT, () => {
+    console.log('Pairing service running on port', PORT);
+});
