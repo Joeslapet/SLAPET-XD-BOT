@@ -48,7 +48,7 @@ app.get('/', (req, res) => {
     res.render('index');
 });
 
-app.use('/api/pairing', pairingRoutes);
+app.use('/api', pairingRoutes);
 
 // 404 handler
 app.use((req, res) => {
