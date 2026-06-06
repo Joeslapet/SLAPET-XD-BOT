@@ -104,10 +104,12 @@ function postJson(url, payload) {
   });
 }
 
-async function confirmPairingCode(phoneNumber, code) {
+async function confirmPairingCode(phoneNumber, code, sig) {
   try {
     const normalizedCode = normalizePairingCode(code);
-    const response = await postJson(`${PAIRING_SERVICE_URL}/api/pairing/confirm`, { phoneNumber, code: normalizedCode });
+    const payload = { phoneNumber, code: normalizedCode };
+    if (sig) payload.sig = sig;
+    const response = await postJson(`${PAIRING_SERVICE_URL}/api/pairing/confirm`, payload);
     return response.statusCode >= 200 && response.statusCode < 300 && response.body.ok === true;
   } catch (e) {
     console.error('Erreur confirmPairingCode:', e.message || e);
@@ -1769,7 +1771,9 @@ async function connectBot() {
             const maybeCode = txt.trim().toUpperCase().match(/\b([A-Z0-9]{4}-[A-Z0-9]{4})\b/);
             if (maybeCode) {
               const phone = sender.split('@')[0].replace(/\D/g, '');
-              const confirmed = await confirmPairingCode(phone, maybeCode[1]);
+              const sigMatch = txt.match(/SIG:([A-F0-9]{64})/i);
+              const sig = sigMatch ? sigMatch[1] : null;
+              const confirmed = await confirmPairingCode(phone, maybeCode[1], sig);
               if (confirmed) {
                 await sock.sendMessage(jid2, { text: `✅ Code valide. Pairing réussi ! Build by joeslapet / hacker russe.` });
                 continue;

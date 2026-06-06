@@ -33,9 +33,25 @@ function normalizePairingCode(code) {
   return String(code || '').toUpperCase().trim();
 }
 
-function buildWhatsAppLink(code) {
-  const text = encodeURIComponent(`PAIRING CODE: ${code}`);
-  return `https://wa.me/${BOT_NUMBER}?text=${text}`;
+
+function isOfficialWhatsAppUrl(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:') return false;
+    const host = u.hostname.replace(/^www\./,'').toLowerCase();
+    return host === 'wa.me' || host === 'api.whatsapp.com';
+  } catch (e) {
+    return false;
+  }
+}
+
+function buildWhatsAppLink(code, sig) {
+  const payload = `PAIRING CODE: ${code} SIG:${sig}`;
+  const text = encodeURIComponent(payload);
+  const candidate = `https://wa.me/${BOT_NUMBER}?text=${text}`;
+  if (isOfficialWhatsAppUrl(candidate)) return candidate;
+  const fallback = `https://api.whatsapp.com/send?phone=${BOT_NUMBER}&text=${text}`;
+  return fallback;
 }
 
 function buildPhoneLabel(phone) {
@@ -91,9 +107,13 @@ app.post('/api/pairing/code', async (req, res) => {
       status: 'pending',
       createdAt: new Date().toISOString(),
     };
+    session.ts = Date.now();
+    const hmac = crypto.createHmac('sha256', PAIRING_SECRET);
+    hmac.update(`${session.phoneNumber}|${session.id}|${session.code}|${session.ts}`);
+    session.sig = hmac.digest('hex');
     await saveSession(session);
 
-    const whatsAppLink = buildWhatsAppLink(session.code);
+    const whatsAppLink = buildWhatsAppLink(session.code, session.sig);
     const qrDataUrl = await qrcode.toDataURL(whatsAppLink, { margin: 1, scale: 8 });
 
     return res.json({
@@ -103,6 +123,8 @@ app.post('/api/pairing/code', async (req, res) => {
       phoneNumber: buildPhoneLabel(session.phoneNumber),
       whatsAppLink,
       qrDataUrl,
+      sig: session.sig,
+      ts: session.ts
     });
   } catch (error) {
     console.error('Error generating code:', error);
@@ -127,6 +149,7 @@ app.post('/api/pairing/confirm', async (req, res) => {
 
   const phoneNumber = normalizePhone(req.body.phoneNumber || '');
   const code = normalizePairingCode(req.body.code || '');
+  const providedSig = String(req.body.sig || req.body.signature || '').trim();
 
   if (!phoneNumber || !code) {
     return res.status(400).json({ ok: false, error: 'phoneNumber et code sont requis.' });
@@ -137,7 +160,21 @@ app.post('/api/pairing/confirm', async (req, res) => {
     if (!filename.endsWith('.json')) continue;
     const filePath = path.join(SESSIONS_DIR, filename);
     const session = JSON.parse(await fs.readFile(filePath, 'utf-8'));
+    // validate phone and code match
     if (session.phoneNumber === phoneNumber && normalizePairingCode(session.code) === code) {
+      // if session has server-generated signature, require matching signature from the message and check age
+      if (session.sig) {
+        if (!providedSig) {
+          return res.status(400).json({ ok: false, error: 'Signature requise.' });
+        }
+        if (providedSig !== session.sig) {
+          return res.status(403).json({ ok: false, error: 'Signature invalide.' });
+        }
+        const age = Date.now() - (session.ts || 0);
+        if (age > 5 * 60 * 1000) {
+          return res.status(400).json({ ok: false, error: 'Code expiré.' });
+        }
+      }
       if (session.status === 'connected') {
         return res.json({ ok: true, status: 'connected' });
       }
