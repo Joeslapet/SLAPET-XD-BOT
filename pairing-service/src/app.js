@@ -1,30 +1,65 @@
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import pairingRoutes from './routes/pairing.routes.js';
-import { config } from './config.js';
-import { errorHandler, notFoundHandler } from './utils/errors.js';
-import { requestLogger } from './utils/logger.js';
+import errorHandler from './utils/errors.js';
+import logger from './utils/logger.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
-app.set('trust proxy', 1);
-app.use(helmet());
-app.use(cors({ origin: config.corsOrigin === '*' ? true : config.corsOrigin }));
-app.use(express.json({ limit: '100kb' }));
-app.use(requestLogger);
+// View engine setup
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
-app.get('/', (req, res) => {
-  res.json({
-    ok: true,
-    service: 'slapet-pairing-service',
-    status: 'online',
-    endpoints: ['/api/health', '/api/pairing/code', '/api/sessions/:sessionId']
-  });
+// Middleware
+app.use(helmet());
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+// Logging middleware
+app.use((req, res, next) => {
+    logger.log(`${req.method} ${req.path}`);
+    next();
 });
 
-app.use('/api', pairingRoutes);
-app.use(notFoundHandler);
+// API Rate limiters
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100
+});
+
+const pairingLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 5,
+    skipSuccessfulRequests: true
+});
+
+app.use('/api/pairing/code', pairingLimiter);
+app.use('/api/', apiLimiter);
+
+// Routes
+app.get('/', (req, res) => {
+    res.render('index');
+});
+
+app.use('/api/pairing', pairingRoutes);
+
+// 404 handler
+app.use((req, res) => {
+    if (req.path.startsWith('/api')) {
+        res.status(404).json({ message: 'Route not found' });
+    } else {
+        res.status(404).render('404');
+    }
+});
+
+// Error handler
 app.use(errorHandler);
 
 export default app;

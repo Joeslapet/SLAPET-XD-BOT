@@ -1,0 +1,20 @@
+version: 1
+services:
+  - type: web
+    name: xxxd-bot-pairing
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: HOST
+        value: 0.0.0.0
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+    routes:
+      - path: /
+        destination: pairing-service
