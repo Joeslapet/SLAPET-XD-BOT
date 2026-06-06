@@ -56,3 +56,17 @@ node scripts/run_e2e_pairing.js
 ```
 
 This starts the pairing-service (requires dependencies installed) and performs a generate+confirm cycle.
+
+## Full E2E with bot
+
+Run the full pairing flow including an optional `bot.js` instance:
+
+```bash
+# from repo root
+export PAIRING_SECRET=your_secret
+export PORT=3001
+# set START_BOT=1 to spawn the bot (it may require WhatsApp authentication)
+START_BOT=1 node scripts/run_full_e2e_with_bot.js
+```
+
+On Windows PowerShell, use `$env:PAIRING_SECRET = "your_secret"` and `$env:START_BOT = "1"`.
