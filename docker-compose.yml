@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  pairing-service:
+    build:
+      context: ./pairing-service
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - PAIRING_SECRET=${PAIRING_SECRET}
+      - BOT_NUMBER=${BOT_NUMBER}
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    environment:
+      - PAIRING_SERVICE_URL=http://pairing-service:3001
+      - PAIRING_SECRET=${PAIRING_SECRET}
+      - BOT_NUMBER=${BOT_NUMBER}
+    depends_on:
+      - pairing-service

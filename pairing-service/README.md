@@ -70,3 +70,17 @@ START_BOT=1 node scripts/run_full_e2e_with_bot.js
 ```
 
 On Windows PowerShell, use `$env:PAIRING_SECRET = "your_secret"` and `$env:START_BOT = "1"`.
+
+## Deployment / Supervision
+
+PM2 (process manager):
+
+Run:
+
+    npm install -g pm2
+    pm2 start ecosystem.config.js
+
+Docker / docker-compose:
+
+    docker-compose up --build -d
+    docker-compose logs -f
