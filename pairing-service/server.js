@@ -4,16 +4,17 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import { promises as fs } from 'fs';
 import crypto from 'crypto';
+import qrcode from 'qrcode';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 const PAIRING_SECRET = process.env.PAIRING_SECRET || 'build-by-joeslapet';
+const BOT_NUMBER = process.env.BOT_NUMBER || '22892864375';
 const SESSIONS_DIR = path.join(__dirname, 'sessions');
 
 await fs.mkdir(SESSIONS_DIR, { recursive: true });
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
@@ -24,18 +25,22 @@ function normalizePhone(phone) {
   return String(phone || '').replace(/[^0-9]/g, '');
 }
 
-function buildPhoneLabel(phone) {
-  if (!phone) return '';
-  const digits = normalizePhone(phone);
-  return digits.length > 3 ? `+${digits}` : digits;
-}
-
 function normalizePairingCode(code) {
   const cleaned = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (cleaned.length === 8) {
     return `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
   }
   return String(code || '').toUpperCase().trim();
+}
+
+function buildWhatsAppLink(code) {
+  const text = encodeURIComponent(`PAIRING CODE: ${code}`);
+  return `https://wa.me/${BOT_NUMBER}?text=${text}`;
+}
+
+function buildPhoneLabel(phone) {
+  const digits = normalizePhone(phone);
+  return digits.length ? `+${digits}` : '';
 }
 
 function generatePairingCode() {
@@ -67,26 +72,42 @@ async function readSession(sessionId) {
 }
 
 app.get('/', (req, res) => {
-  res.render('pairing');
+  res.render('pairing', { botNumber: BOT_NUMBER });
 });
 
 app.post('/api/pairing/code', async (req, res) => {
-  const phoneNumber = normalizePhone(req.body.phoneNumber || req.query.phoneNumber || '');
+  try {
+    const phoneNumber = normalizePhone(req.body.phoneNumber || req.query.phoneNumber || '');
 
-  if (!phoneNumber || phoneNumber.length < 8 || phoneNumber.length > 16) {
-    return res.status(400).json({ ok: false, error: 'Numéro invalide. Entrez un numéro WhatsApp valide.' });
+    if (!phoneNumber || phoneNumber.length < 8 || phoneNumber.length > 16) {
+      return res.status(400).json({ ok: false, error: 'Numéro invalide. Entrez un numéro WhatsApp valide.' });
+    }
+
+    const code = generatePairingCode();
+    const session = {
+      id: generateSessionId(),
+      phoneNumber,
+      code,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    await saveSession(session);
+
+    const whatsAppLink = buildWhatsAppLink(session.code);
+    const qrDataUrl = await qrcode.toDataURL(whatsAppLink, { margin: 1, scale: 8 });
+
+    return res.json({
+      ok: true,
+      sessionId: session.id,
+      code: session.code,
+      phoneNumber: buildPhoneLabel(session.phoneNumber),
+      whatsAppLink,
+      qrDataUrl,
+    });
+  } catch (error) {
+    console.error('Error generating code:', error);
+    return res.status(500).json({ ok: false, error: 'Erreur interne du serveur.' });
   }
-
-  const session = {
-    id: generateSessionId(),
-    phoneNumber,
-    code: generatePairingCode(),
-    status: 'pending',
-    createdAt: new Date().toISOString()
-  };
-
-  await saveSession(session);
-  return res.json({ ok: true, sessionId: session.id, code: session.code, phoneNumber: buildPhoneLabel(phoneNumber) });
 });
 
 app.get('/api/pairing/sessions/:sessionId', async (req, res) => {
@@ -116,7 +137,7 @@ app.post('/api/pairing/confirm', async (req, res) => {
     if (!filename.endsWith('.json')) continue;
     const filePath = path.join(SESSIONS_DIR, filename);
     const session = JSON.parse(await fs.readFile(filePath, 'utf-8'));
-    if (session.phoneNumber === phoneNumber && session.code === code) {
+    if (session.phoneNumber === phoneNumber && normalizePairingCode(session.code) === code) {
       if (session.status === 'connected') {
         return res.json({ ok: true, status: 'connected' });
       }
