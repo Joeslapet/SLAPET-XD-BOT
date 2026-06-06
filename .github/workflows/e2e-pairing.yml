@@ -1,0 +1,32 @@
+name: E2E Pairing Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install pairing-service deps
+        working-directory: pairing-service
+        run: npm ci
+
+      - name: Ensure node-fetch available
+        run: npm install node-fetch@2 --no-save
+
+      - name: Run E2E pairing script
+        env:
+          PAIRING_SECRET: ${{ secrets.PAIRING_SECRET }}
+          PORT: '3001'
+        run: node scripts/run_e2e_pairing.js
