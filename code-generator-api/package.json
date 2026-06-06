@@ -1,0 +1,16 @@
+{
+  "name": "code-generator-api",
+  "version": "1.0.0",
+  "description": "Projet client/serveur de g\u00e9n\u00e9ration de codes uniques",
+  "type": "module",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "client": "node client/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  }
+}
