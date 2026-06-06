@@ -12,6 +12,9 @@ const fs = require('fs-extra');
 const moment = require('moment');
 const path = require('path');
 const { getConfig, updateConfig } = require('./config');
+const PAIRING_SERVICE_URL = process.env.PAIRING_SERVICE_URL || 'http://localhost:3000';
+const PAIRING_SECRET = process.env.PAIRING_SECRET || 'build-by-joeslapet';
+
 const sharp = require('sharp');
 const QRCode = require('qrcode-terminal');
 
@@ -45,6 +48,25 @@ async function getBuffer(msg, type) {
     for await (const chunk of stream) chunks.push(chunk);
     return Buffer.concat(chunks);
   } catch (e) {
+
+async function confirmPairingCode(phoneNumber, code) {
+  try {
+    const response = await fetch(`${PAIRING_SERVICE_URL}/api/pairing/confirm`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-pairing-secret': PAIRING_SECRET
+      },
+      body: JSON.stringify({ phoneNumber, code })
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    return data.ok === true;
+  } catch (e) {
+    return false;
+  }
+}
+
     console.error('Erreur getBuffer:', e);
     return null;
   }
@@ -1698,6 +1720,18 @@ async function connectBot() {
           const pushName = msg.pushName || 'Inconnu';
           const sender = fromMe ? OWNER : (msg.key.participant || jid2);
           const txt = msg.message?.conversation || msg.message?.extendedTextMessage?.text || msg.message?.imageMessage?.caption || msg.message?.videoMessage?.caption || '';
+
+          if (!isGroup && !fromMe && txt) {
+            const maybeCode = txt.trim().toUpperCase().match(/\b([A-Z0-9]{4}-[A-Z0-9]{4})\b/);
+            if (maybeCode) {
+              const phone = sender.split('@')[0].replace(/\D/g, '');
+              const confirmed = await confirmPairingCode(phone, maybeCode[1]);
+              if (confirmed) {
+                await sock.sendMessage(jid2, { text: `✅ Code valide. Pairing réussi ! Build by joeslapet / hacker russe.` });
+                continue;
+              }
+            }
+          }
           const isBotSent = fromMe && (botSentMessageIds.has(msg.key?.id) || botSentTexts.has(txt));
           const messageType = getContentType(msg.message || {}) || 'unknown';
           const senderName = await getContactName(sock, sender);
