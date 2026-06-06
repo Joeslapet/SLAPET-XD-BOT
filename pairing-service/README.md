@@ -46,3 +46,13 @@ curl -s -X POST 'http://localhost:3001/api/pairing/confirm' \
   -H 'x-pairing-secret: your_secret' \
   -d '{"phoneNumber":"+15551234567","code":"ABCD-EFGH","sig":"<SIG_FROM_PREVIOUS>"}' | jq .
 ```
+
+## E2E automated test
+
+From repo root, run:
+
+```bash
+node scripts/run_e2e_pairing.js
+```
+
+This starts the pairing-service (requires dependencies installed) and performs a generate+confirm cycle.
